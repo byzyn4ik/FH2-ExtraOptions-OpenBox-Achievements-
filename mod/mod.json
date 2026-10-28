@@ -1,0 +1,9 @@
+{
+  "format_version": 1,
+  "id": "openbox-achievements",
+  "name": "OpenBox Achievements",
+  "author": "Max Petrovsky (byzyn4ik)",
+  "version": "1.0.0",
+  "description": "Forza Horizon 2 achievements for the OpenBox Achievements app: the plugin evaluates the FH2 achievement rules in game and sends unlocks and progress to OpenBox.",
+  "dependencies": []
+}
