@@ -93,6 +93,11 @@ The saves are looked for in `<launcher>\data\titles\1A96545B\saves` and in
   `\\.\pipe\OpenBoxAchievements.Events.v1` (`hello`, `unlocked`, `progress`,
   `end`; OpenBox answers `ok`; see OpenBox's `docs/EVENTS.md`). Unlocks are
   resent until OpenBox has them, so none is lost while the app is closed.
+  `hello` carries the game's process id (`pid=<n>`), and while there is
+  nothing to send the plugin says `alive fh2 pid=<n>` every 5 seconds: OpenBox
+  counts FH2 as played (Game Bar widget, time played, the page over the game)
+  while the plugin is on the pipe, not by the game's EXE name, and stops when
+  the game's process exits. Older OpenBox versions ignore `alive`.
 - **Pause menu.** The game's own Achievements button (Progress tab) asks the
   console's system UI for the title's achievements through
   `PopupShowAchievements`' vtable slot `0x2e360c8` (method `0xe38770`). The
@@ -153,9 +158,13 @@ without the game or a running OpenBox:
    Achievements vtable at the inspected RVAs), a fake OpenBox pipe server and
    a fake OpenBox app: events through the hooked import reach the original and
    unlock achievements, the save stats count, OpenBox gets `unlocked` and
-   `progress` lines, the button brings up the app and still runs the game's
+   `progress` lines (`hello` with the pid, then `alive` heartbeats while idle),
+   the button brings up the app and still runs the game's
    method; a late-resolved import, a mismatched image, a mismatched button and
    a missing app are each handled without touching the game.
+
+The OpenBox app's own tests (`run-tests.ps1` in its repo) also run this
+DLL, through `plugin_test.exe bus`, against the real app on a private pipe.
 
 Replaying a recorded session (`[Logging] Telemetry=1`):
 

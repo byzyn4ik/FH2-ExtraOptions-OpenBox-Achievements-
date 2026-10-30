@@ -253,11 +253,32 @@ Delivery deliver(const std::string &message) {
     return result;
 }
 
-unsigned long long next_send;
+unsigned long long next_send, last_delivered;
+
+// While connected and idle, OpenBox hears from the game at least this often:
+// it counts the game as played while the plugin is on the pipe.
+constexpr unsigned long long kHeartbeatMs = 5000;
+
+std::string pid_word() { return "pid=" + std::to_string(GetCurrentProcessId()); }
+
+// Nothing to send: "alive" tells OpenBox the game is still played (an older
+// OpenBox ignores the line and answers "ok"). False when it was not heard.
+bool heartbeat(unsigned long long now) {
+    if (now - last_delivered < kHeartbeatMs) return true;
+    if (deliver("alive " + game_id + " " + pid_word() + "\nend\n") == Delivered) {
+        last_delivered = now;
+        return true;
+    }
+    log_line("OpenBox Achievements not reachable; updates are kept and resent");
+    hello_ok = false;
+    full_sync = true;
+    next_send = now + 3000;
+    return false;
+}
 
 bool send_updates(bool forced) {
     unsigned long long now = GetTickCount64();
-    std::string message = "hello " + game_id + " 1 " + producer + "\n";
+    std::string message = "hello " + game_id + " 1 " + producer + " " + pid_word() + "\n";
     std::set<std::string> unlocks;
     std::map<std::string, std::string> progress;
     EnterCriticalSection(&engine_lock);
@@ -284,7 +305,7 @@ bool send_updates(bool forced) {
     LeaveCriticalSection(&engine_lock);
     if (hello_ok && !full_sync && unlocks.empty() && progress.empty()) {
         progress_dirty.clear();
-        return true;
+        return heartbeat(now);
     }
     if (!forced && now < next_send) return false;
     message += "end\n";
@@ -308,6 +329,7 @@ bool send_updates(bool forced) {
     told_old = false;
     full_sync = false;
     next_send = now + 250;
+    last_delivered = now;
     progress_dirty.clear();
     for (const auto &entry : progress) progress_sent[entry.first] = entry.second;
     EnterCriticalSection(&engine_lock);

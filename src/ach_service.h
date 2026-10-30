@@ -6,12 +6,15 @@
 // %LOCALAPPDATA%\OpenBoxAchievements\games\<game>\ingame_state.json and tells
 // OpenBox Achievements only the results over its local pipe:
 //
-//   hello <game> 1 <producer>
+//   hello <game> 1 <producer> pid=<game process id>
 //   unlocked <game> <id> <ISO-8601 UTC time>
 //   progress <game> <id> <current>/<target>
 //   end
 //
-// OpenBox answers "ok". Unlocks are resent until OpenBox has answered.
+// OpenBox answers "ok". Unlocks are resent until OpenBox has answered. While
+// there is nothing to send, "alive <game> pid=<n>" + "end" every 5 seconds
+// tells OpenBox the game is still played (it counts the game as running while
+// its plugin is on the pipe, and no longer once that process has exited).
 #pragma once
 #include <string>
 
@@ -26,7 +29,7 @@ struct Options {
     std::wstring log;            // the service log (empty: none)
     std::wstring telemetry_copy; // every record is also appended here (empty: none)
     std::wstring pipe = L"\\\\.\\pipe\\OpenBoxAchievements.Events.v1";
-    std::string producer = "fh2-eo-openbox-achievements/1.0.0";
+    std::string producer = "fh2-eo-openbox-achievements/1.1.0";
 };
 
 // Starts the worker once; later calls return true without changes.

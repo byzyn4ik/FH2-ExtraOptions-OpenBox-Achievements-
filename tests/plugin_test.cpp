@@ -278,7 +278,8 @@ int fake_app(int argc, wchar_t **argv) {
 int wmain(int argc, wchar_t **argv) {
     if (argc >= 2 && (!wcscmp(argv[1], L"--game") || !wcscmp(argv[1], L"--background"))) return fake_app(argc, argv);
     if (argc < 4) {
-        fprintf(stderr, "usage: plugin_test full|late|mismatch|noapp <plugin dll> <pipe name>\n");
+        fprintf(stderr, "usage: plugin_test full|late|mismatch|badbutton|noapp <plugin dll> <pipe name>\n"
+                        "       plugin_test bus <plugin dll> <pipe name> <seconds>\n");
         return 2;
     }
     std::wstring mode = argv[1];
@@ -287,10 +288,25 @@ int wmain(int argc, wchar_t **argv) {
     work = folder_of(folder_of(folder_of(folder_of(plugin_path)))); // <work>\mods\<mod>\plugins\<dll>
     pipe_path = std::wstring(L"\\\\.\\pipe\\") + argv[3];
     InitializeCriticalSection(&received_lock);
-    HANDLE server = CreateThread(nullptr, 0, pipe_server, nullptr, 0, nullptr);
-    (void)server;
+    // bus: the real OpenBox app is on the pipe (its own tests drive this mode).
+    if (mode != L"bus") {
+        HANDLE server = CreateThread(nullptr, 0, pipe_server, nullptr, 0, nullptr);
+        (void)server;
+    }
     build_image();
     printf("plugin test: %ls\n", mode.c_str());
+
+    if (mode == L"bus") {
+        // The game runs this long with the plugin, then exits as a game does
+        // (no goodbye): OpenBox sees the process end.
+        int seconds = argc >= 5 ? _wtoi(argv[4]) : 20;
+        BOOL ready = initialize();
+        check(ready == TRUE, "FH2PluginInitialize returns TRUE");
+        printf("  pid %lu, running %d s\n", GetCurrentProcessId(), seconds);
+        fflush(stdout);
+        Sleep((DWORD)seconds * 1000u);
+        return failures ? 1 : 0;
+    }
 
     if (mode == L"late") put(kEtxSlot, (void *)nullptr); // the host has not resolved the import yet
     if (mode == L"mismatch") image[kFirstName] = 'X';   // not the inspected executable
@@ -369,7 +385,11 @@ int wmain(int argc, wchar_t **argv) {
         LeaveCriticalSection(&received_lock);
     }
     check(all, "OpenBox gets the unlocks (27, 28, 32) and progress (30 3/5, 19 2/25, 29 60/175)");
-    check(was_received("hello fh2 1 fh2-eo-openbox-achievements/1.0.0"), "the pipe message starts with hello");
+    check(was_received("hello fh2 1 fh2-eo-openbox-achievements/1.1.0 pid=" + std::to_string(GetCurrentProcessId())),
+          "the pipe message starts with hello and the game's pid");
+    // Nothing more to send: the plugin keeps telling OpenBox the game is played.
+    check(wait_received({"alive fh2 pid=" + std::to_string(GetCurrentProcessId())}, 8000),
+          "idle, the plugin sends \"alive fh2 pid=<n>\" (heartbeat)");
 
     // The pause menu's Achievements button: flush, the app, then the game's method.
     unsigned char page[64] = {};
